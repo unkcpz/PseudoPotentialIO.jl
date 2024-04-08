@@ -83,7 +83,8 @@ function upf2_dump_psp(upffile::UpfFile)::EzXML.Node
 
     #* PP_INFO
     if !isnothing(upffile.info)
-        addelement!(root_node, "PP_INFO", upffile.info)
+        # add extra newlines before and after the info
+        addelement!(root_node, "PP_INFO", "\n$(upffile.info)\n")
     end
     # PP_HEADER
     link!(root_node, upf2_dump_header(upffile.header))

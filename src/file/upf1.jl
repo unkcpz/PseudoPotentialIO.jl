@@ -41,10 +41,9 @@ function upf1_parse_info(io::IO)
     # Read the first line of PP_INFO then read until the end tag
     # TODO: this will break if there are no lines in PP_INFO
     line = string(strip(readline(io)))
-    push!(info, line)
     while !occursin("</PP_INFO>", line)
-        line = string(strip(readline(io)))
         push!(info, line)
+        line = string(strip(readline(io)))
     end
     seek(io, pos)
     return join(info, '\n')
