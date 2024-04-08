@@ -265,6 +265,9 @@ function upf2_dump_qijl(qijl::UpfQijl)::EzXML.Node
     node = ElementNode("PP_QIJL.$(qijl.first_index).$(qijl.second_index).$(qijl.angular_momentum)")
 
     for n in fieldnames(UpfQijl)
+        if n == :qijl
+            continue
+        end
         set_attr!(node, n, getfield(qijl, n))
     end
 
@@ -288,6 +291,9 @@ function upf2_parse_augmentation(node::EzXML.Node)
     q_node = findfirst("PP_Q", node)
     q_vector = parse.(Float64, split(strip(nodecontent(q_node))))
     q_size = get_attr(Int, q_node, "size")
+    if isnothing(q_size)
+        q_size = length(q_vector)
+    end
     nq = Int(sqrt(q_size))
     q = reshape(q_vector, nq, nq)
 
@@ -343,7 +349,7 @@ function upf2_dump_augmentation(aug::UpfAugmentation)::EzXML.Node
     node = ElementNode("PP_AUGMENTATION")
 
     for n in [n for n in fieldnames(UpfAugmentation) if 
-        n != :qij && n != :qijl && n != :qfcoefs && n != :rinner && n != :multipoles && n != :q]
+        n != :qijs && n != :qijls && n != :qfcoefs && n != :rinner && n != :multipoles && n != :q]
         set_attr!(node, n, getfield(aug, n))
     end
 
