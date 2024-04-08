@@ -91,6 +91,8 @@
         filename = "Mg.upf"
         file = load_psp_file(UPF2_CASE_FILEPATHS[filename])
 
+        # TODO: add regression tests to read and dump and read the file and test fields are intact
+
         header = file.header
         @test header.generated == "Generated using ONCVPSP code by D. R. Hamann"
         @test header.author == "anonymous"

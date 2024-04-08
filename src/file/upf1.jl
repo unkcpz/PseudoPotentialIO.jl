@@ -234,6 +234,9 @@ function upf1_parse_dij(io::IO, number_of_proj::Int)
 end
 
 function upf1_parse_augmentation(io::IO, mesh_size::Int, number_of_proj::Int, l_max::Int)
+    # `q_with_l` is supported in UPF.v1 by encapsulating the augmentation part in `<PP_QIJ_WITH_L>`, since most of pseudopotential generation code support UPF.v2 except the Vanderbilt USPP code only support UPF.v1 which don't have `<PP_QIJ_WITH_L>`, so we don't parse `q_with_l` here for UPF.v1
+    # TODO: maybe also should support this? Find which PP generation code is output this?
+
     pos = position(io)
     read_until(io, "<PP_QIJ>")
 
@@ -266,6 +269,7 @@ function upf1_parse_augmentation(io::IO, mesh_size::Int, number_of_proj::Int, l_
         # of the projector corresponding to the second index
         s = split(readline(io))
         first_index, second_index, second_index_angular_momentum = parse.(Int, s[1:3])
+        composite_index = second_index * (second_index - 1) / 2 + first_index
 
         # The second line contains the integral of the augmentation charge
         s = split(readline(io))
@@ -281,7 +285,6 @@ function upf1_parse_augmentation(io::IO, mesh_size::Int, number_of_proj::Int, l_
 
         # These values are given by UPF v2 but not by UPF v1
         is_null = nothing
-        composite_index = nothing
 
         q[first_index, second_index] = Q_int
         q[second_index, first_index] = Q_int

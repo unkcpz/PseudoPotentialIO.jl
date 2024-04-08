@@ -24,7 +24,7 @@ function upf2_parse_psp(doc::EzXML.Document, checksum::Vector{UInt8})::UpfFile
         local_ = parse.(Float64, split(strip(nodecontent(local_node))))
     end
     #* PP_NONLOCAL
-    nonlocal = upf2_parse_nonlocal(doc)
+    nonlocal = upf2_parse_nonlocal(doc, header.l_max)
     #* PP_PSWFC
     pswfc_node = findfirst("PP_PSWFC", root_node)
     pswfc = [upf2_parse_chi(n)
@@ -237,11 +237,13 @@ function upf2_parse_qij(node::EzXML.Node)
 end
 
 function upf2_dump_qij(qij::UpfQij)::EzXML.Node
-    node = ElementNode("PP_QIJ")
-    set_attr!(node, "first_index", qij.first_index)
-    set_attr!(node, "second_index", qij.second_index)
-    set_attr!(node, "composite_index", qij.composite_index)
-    set_attr!(node, "is_null", qij.is_null)
+    node = ElementNode("PP_QIJ.$(qij.first_index).$(qij.second_index)")
+    for n in fieldnames(UpfQij)
+        if n == :qij
+            continue
+        end
+        set_attr!(node, n, getfield(qij, n))
+    end
     text = array_to_text(qij.qij)
     link!(node, TextNode(text))
 
@@ -276,7 +278,7 @@ function upf2_dump_qijl(qijl::UpfQijl)::EzXML.Node
     return node
 end
 
-function upf2_parse_augmentation(node::EzXML.Node)
+function upf2_parse_augmentation(node::EzXML.Node, l_max::Int)
     q_with_l = get_attr(Bool, node, "q_with_l")
     nqf = get_attr(Int, node, "nqf")
     nqlc = get_attr(Float64, node, "nqlc")
@@ -294,8 +296,8 @@ function upf2_parse_augmentation(node::EzXML.Node)
     if isnothing(q_size)
         q_size = length(q_vector)
     end
-    nq = Int(sqrt(q_size))
-    q = reshape(q_vector, nq, nq)
+    number_of_projectors = Int(sqrt(q_size))
+    q = reshape(q_vector, number_of_projectors, number_of_projectors)
 
     multipoles_node = findfirst("PP_MULTIPOLES", node)
     if isnothing(multipoles_node)
@@ -308,24 +310,33 @@ function upf2_parse_augmentation(node::EzXML.Node)
     if isnothing(qfcoef_node)
         qfcoefs = nothing
     else
-        error("Cannot parse UPF v2.0.1 with PP_QFCOEF")
-        # qfcoefs = parse.(Float64, split(strip(nodecontent(qfcoef_node))))
+        # In UPF.v2 qfcoef(1:nqf, 1:nqlc, 1:nbeta, 1:nbeta)
+        nqlc = 2 * l_max + 1
+        qfcoefs = UpfQfcoef[]
+        vec_qfcoefs = parse.(Float64, split(strip(nodecontent(qfcoef_node))))
+        qfcoef_idx = 1
+        for first_index in 1:number_of_projectors, second_index in first_index:number_of_projectors
+            qfcoef = vec_qfcoefs[qfcoef_idx:qfcoef_idx+nqf*nqlc-1]
+            composite_index = second_index * (second_index - 1) / 2 + first_index
+
+            push!(qfcoefs, UpfQfcoef(qfcoef, first_index, second_index, composite_index))
+
+            qfcoef_idx += nqf*nqlc
+        end
     end
 
     rinner_node = findfirst("PP_RINNER", node)
     if isnothing(rinner_node)
         rinner = nothing
     else
-        error("Cannot parse UPF v2.0.1 with PP_RINNER")
-        # rinner = parse.(Float64, split(strip(nodecontent(rinner_node))))
+        rinner = parse.(Float64, split(strip(nodecontent(rinner_node))))
     end
 
     qij_nodes = [n for n in eachnode(node) if occursin("PP_QIJ.", nodename(n))]
     if isempty(qij_nodes)
         qijs = nothing
     else
-        error("Cannot parse UPF v2.0.1 with PP_QIJ.i.j")
-        # qijs = upf2_parse_qij.(qij_nodes)
+        qijs = upf2_parse_qij.(qij_nodes)
     end
 
     qijl_nodes = [n for n in eachnode(node) if occursin("PP_QIJL.", nodename(n))]
@@ -341,8 +352,8 @@ function upf2_parse_augmentation(node::EzXML.Node)
                            shape, iraug, raug, l_max_aug, augmentation_epsilon, cutoff_r,
                            cutoff_r_index)
 end
-function upf2_parse_augmentation(doc::EzXML.Document)
-    return upf2_parse_augmentation(findfirst("PP_NONLOCAL/PP_AUGMENTATION", root(doc)))
+function upf2_parse_augmentation(doc::EzXML.Document, l_max::Int)
+    return upf2_parse_augmentation(findfirst("PP_NONLOCAL/PP_AUGMENTATION", root(doc)), l_max)
 end
 
 function upf2_dump_augmentation(aug::UpfAugmentation)::EzXML.Node
@@ -356,6 +367,7 @@ function upf2_dump_augmentation(aug::UpfAugmentation)::EzXML.Node
     # PP_Q
     q_node = ElementNode("PP_Q")
     set_attr!(q_node, "size", length(aug.q))
+    number_of_projectors = sqrt(length(aug.q))
     text = array_to_text(aug.q)
     link!(q_node, TextNode(text))
     link!(node, q_node)
@@ -367,22 +379,29 @@ function upf2_dump_augmentation(aug::UpfAugmentation)::EzXML.Node
 
     # PP_QFCOEF
     if !isnothing(aug.qfcoefs)
-        # addelement!(node, "PP_QFCOEF", array_to_text(aug.qfcoefs))
-        @warn "Cannot dump UPF v2.0.1 with PP_QFCOEF"
+        # qfcoef(1:nqf, 1:nqlc, 1:nbeta, 1:nbeta)
+        # Small-radius expansion coefficients of q functions
+        # Need to concatenate to an array from every qfcoef node
+        num_aug = (1 + number_of_projectors) * number_of_projectors / 2
+        vec_qfcoefs = UpfQfcoef[]
+
+        for qfcoef in aug.qfcoefs
+            vec_qfcoefs = vcat(vec_qfcoefs, qfcoef.qfcoef)       
+        end
+
+        addelement!(node, "PP_QFCOEF", array_to_text(vec_qfcoefs))
     end
 
     # PP_RINNER
     if !isnothing(aug.rinner)
-        # addelement!(node, "PP_RINNER", array_to_text(aug.rinner))
-        @warn "Cannot dump UPF v2.0.1 with PP_RINNER"
+        addelement!(node, "PP_RINNER", array_to_text(aug.rinner))
     end
 
     # PP_QIJ
     if !isnothing(aug.qijs)
-        #for qij in aug.qijs
-        #    link!(node, upf2_dump_qij(qij))
-        #end
-        @warn "Cannot dump UPF v2.0.1 with PP_QIJ.i.j"
+        for qij in aug.qijs
+            link!(node, upf2_dump_qij(qij))
+        end
     end
 
     # PP_QIJL
@@ -431,7 +450,7 @@ function upf2_dump_beta(beta::UpfBeta)::EzXML.Node
     return node
 end
 
-function upf2_parse_nonlocal(node::EzXML.Node)
+function upf2_parse_nonlocal(node::EzXML.Node, l_max::Int)
     beta_nodes = [n for n in eachnode(node) if occursin("PP_BETA.", nodename(n))]
     betas = upf2_parse_beta.(beta_nodes)
 
@@ -443,13 +462,13 @@ function upf2_parse_nonlocal(node::EzXML.Node)
     if isnothing(augmentation_node)
         augmentation = nothing
     else
-        augmentation = upf2_parse_augmentation(augmentation_node)
+        augmentation = upf2_parse_augmentation(augmentation_node, l_max)
     end
 
     return UpfNonlocal(betas, dij, augmentation)
 end
-function upf2_parse_nonlocal(doc::EzXML.Document)
-    return upf2_parse_nonlocal(findfirst("PP_NONLOCAL", root(doc)))
+function upf2_parse_nonlocal(doc::EzXML.Document, l_max::Int)
+    return upf2_parse_nonlocal(findfirst("PP_NONLOCAL", root(doc)), l_max)
 end
 
 function upf2_dump_nonlocal(nl::UpfNonlocal)::EzXML.Node
