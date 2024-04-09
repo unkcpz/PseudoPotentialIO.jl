@@ -95,9 +95,9 @@ end
 
 struct UpfQfcoef
     qfcoef::Vector{Float64}
-    angular_momentum::Union{Nothing,Int}
     first_index::Union{Nothing,Int}
     second_index::Union{Nothing,Int}
+    composite_index::Union{Nothing,Int}
 end
 
 """
@@ -173,6 +173,74 @@ struct UpfNonlocal
     "Agumentation data for ultrasoft and PAW pseudopotentials"
     augmentation::Union{Nothing,UpfAugmentation}
 end
+
+"""
+Convert Q_IJ to Q_IJL
+
+QE do this convertion internally. SIRIUS requires the Q_IJL format.
+We use the process same as QE to convert Q_IJ to Q_IJL.
+https://github.com/QEF/q-e/blob/57a97fe3ac56c6862ee083bf10d27505835c092a/upflib/upf_to_internal.f90#L64-L157
+"""
+function convert2std(nonlocal::UpfNonlocal, mesh::UpfMesh)::UpfNonlocal
+    aug = nonlocal.augmentation
+
+    if aug.q_with_l
+        return nonlocal
+    end
+
+    @assert aug.qijs !== nothing "Q_IJ is not defined"
+    @assert aug.qijls === nothing "Q_IJL is already defined"
+    @assert aug.nqf != 0 "nqf is zero that means rinner/qfcoefs are not defined"
+
+    # Convert Q_IJ to Q_IJL in augmentation field
+    qijls = UpfQijl[]
+
+    for (idx, qij) in enumerate(aug.qijs)
+        first_index = qij.first_index
+        second_index = qij.second_index
+        composite_index = qij.composite_index
+        qfcoef = aug.qfcoefs[idx]
+        @assert qfcoef.first_index === first_index "first_index mismatch: $(qfcoef.first_index) != $first_index"
+        @assert qfcoef.second_index === second_index "second_index mismatch: $(qfcoef.second_index) != $second_index"
+        @assert qfcoef.composite_index === composite_index "composite_index mismatch: $(qfcoef.composite_index) != $composite_index"
+
+        l1 = nonlocal.betas[first_index].angular_momentum
+        l2 = nonlocal.betas[second_index].angular_momentum
+        # duplicate q(r) for each l
+        for l in abs(l1-l2):2:l1+l2
+            qijl = UpfQijl(zeros(length(qij.qij)), l, first_index, second_index, composite_index, false)
+            qijl.qijl .= qij.qij
+
+            # inner value modified if nqf and rinner are defined
+            for ir in eachindex(qijl.qijl)
+                x = mesh.r[ir]
+                if x ≥ aug.rinner[l+1]
+                    # only modified if x < rinner
+                    break
+                end
+                # Poly expansion of q(r) at small radii
+                xx = x^2
+
+                qijl.qijl[ir] = qfcoef.qfcoef[1] # init
+                for _i in 2:aug.nqf
+                    qijl.qijl[ir] += qfcoef.qfcoef[_i] * xx ^ (_i-1)
+                end 
+                qijl.qijl[ir] *= x^(l+2)
+            end
+            push!(qijls, qijl)
+        end
+    end
+
+    q_with_l = true
+    nqf = 0
+    qfcoefs = nothing
+    rinner = nothing
+    qijs = nothing
+
+    return UpfNonlocal(nonlocal.betas, nonlocal.dij, UpfAugmentation(aug.q, aug.multipoles, qfcoefs, rinner, qijs, qijls, q_with_l, nqf, aug.nqlc, aug.shape, aug.iraug, aug.raug, aug.l_max_aug, aug.augmentation_epsilon, aug.cutoff_r, aug.cutoff_r_index))
+
+end
+
 
 """
 UPF `<PP_PSWFC/PP_CHI>`
@@ -305,6 +373,13 @@ struct UpfFile <: PsPFile
     paw::Union{Nothing,UpfPaw}
     "GIPAW data"
     gipaw::Union{Nothing,UpfGipaw}
+end
+
+function convert2std(upffile::UpfFile)::UpfFile
+    mesh = upffile.mesh
+    nonlocal = upffile.nonlocal
+    new_nonlocal = convert2std(nonlocal, mesh)
+    return UpfFile(upffile.checksum, upffile.version, upffile.info, upffile.header, mesh, upffile.nlcc, upffile.local_, new_nonlocal, upffile.pswfc, upffile.full_wfc, upffile.rhoatom, upffile.spin_orb, upffile.paw, upffile.gipaw)
 end
 
 function UpfFile(path::AbstractString)

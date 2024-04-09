@@ -383,7 +383,6 @@ function upf2_dump_augmentation(aug::UpfAugmentation)::EzXML.Node
         # qfcoef(1:nqf, 1:nqlc, 1:nbeta, 1:nbeta)
         # Small-radius expansion coefficients of q functions
         # Need to concatenate to an array from every qfcoef node
-        num_aug = (1 + number_of_projectors) * number_of_projectors / 2
         vec_qfcoefs = UpfQfcoef[]
 
         for qfcoef in aug.qfcoefs

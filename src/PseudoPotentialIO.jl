@@ -49,6 +49,7 @@ export n_chi_function_radials
 include("file/file.jl")
 
 export UpfFile
+export convert2std
 include("file/upf.jl")
 include("file/upf1.jl")
 include("file/upf2.jl")
