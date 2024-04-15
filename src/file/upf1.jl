@@ -49,6 +49,13 @@ function upf1_parse_info(io::IO)
     return join(info, '\n')
 end
 
+XC_MAPPING = Dict{String, String}(
+    "SLA+PW+PBX+PBC" => "PBE",
+    # TODO: more?
+)
+
+mapping_xc(xc::AbstractString) = get(XC_MAPPING, xc, xc)
+
 function upf1_parse_header(io::IO)
     read_until(io, "<PP_HEADER>")
 
@@ -81,9 +88,11 @@ function upf1_parse_header(io::IO)
     #     SLA  PW   PBX  PBC    PBE  Exchange-Correlation functional
     # We filter out any strings longer than 6 characters and create a cleaned
     # space-separated string like:
-    #     SLA PW PBX PBC PBE
+    #     SLA+PW+PBX+PBC
+    # From UPF.v2, the functional is stored in short form, e.g. "PBE" instead of "sla+pw+pbx+pbc"
+    # We do the mapping to the short form, so the data can directly dumped to UPF.v2
     s = strip.(split(strip(readline(io))))
-    functional = join(filter(s_i -> length(s_i) <= 6, s), ' ')
+    functional = mapping_xc(join(filter(s_i -> length(s_i) <= 6 && s_i != "PBE", s), '+'))
 
     # Line 6 contains the pseudo-ionic valence charge
     s = split(readline(io))

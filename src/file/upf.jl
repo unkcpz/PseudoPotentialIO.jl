@@ -199,7 +199,7 @@ function convert2std(nonlocal::UpfNonlocal, mesh::UpfMesh)::UpfNonlocal
         first_index = qij.first_index
         second_index = qij.second_index
         composite_index = qij.composite_index
-        qfcoef = aug.qfcoefs[idx]
+        qfcoef = aug.qfcoefs[(first_index, second_index)]
         @assert qfcoef.first_index === first_index "first_index mismatch: $(qfcoef.first_index) != $first_index"
         @assert qfcoef.second_index === second_index "second_index mismatch: $(qfcoef.second_index) != $second_index"
         @assert qfcoef.composite_index === composite_index "composite_index mismatch: $(qfcoef.composite_index) != $composite_index"
