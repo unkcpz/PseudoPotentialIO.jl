@@ -114,7 +114,7 @@ struct UpfAugmentation
     multipoles::Union{Nothing,Vector{Float64}}
     """Coefficients used to perform a Taylor expansion of the augmentation functions at
     small radii (NB: compulsory if `nqf > 0`, ignored otherwise)"""
-    qfcoefs::Union{Nothing,Vector{UpfQfcoef}}
+    qfcoefs::Union{Nothing, Dict{Tuple{Int,Int}, UpfQfcoef}}
     rinner::Union{Nothing,Vector{Float64}}
     "If `q_with_l` is false, the augmentation functions for `i,j in 1:number_of_proj`"
     qijs::Union{Nothing,Vector{UpfQij}}
@@ -127,7 +127,7 @@ struct UpfAugmentation
     charge at small radius."""
     nqf::Int
     "Number of angular momenta terms in the augmentation charge, unused if `nqf = 0`"
-    nqlc::Union{Nothing,Float64}
+    nqlc::Union{Nothing,Int}
     """(UNUSED) (PAW) Shape of the augmentation function: `{PSQ, GAUSS, BESSEL}`, could
     be used for analyical overlap of PAW augmentation charge"""
     shape::Union{Nothing,String}

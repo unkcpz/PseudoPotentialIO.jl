@@ -260,7 +260,7 @@ function upf1_parse_augmentation(io::IO, mesh_size::Int, number_of_proj::Int, l_
 
     q = zeros(Float64, number_of_proj, number_of_proj)
     qijs = UpfQij[]
-    qfcoefs = UpfQfcoef[]
+    qfcoefs = Dict{Tuple{Int, Int}, UpfQfcoef}()
 
     # For each pair of projectors, read the augmentation function block
     for i in 1:number_of_proj, _ in i:number_of_proj
@@ -288,7 +288,13 @@ function upf1_parse_augmentation(io::IO, mesh_size::Int, number_of_proj::Int, l_
         q[first_index, second_index] = Q_int
         q[second_index, first_index] = Q_int
         push!(qijs, UpfQij(qij, first_index, second_index, composite_index, is_null))
-        push!(qfcoefs, UpfQfcoef(qfcoef, first_index, second_index, composite_index))
+
+        qfcoefs[(first_index, second_index)] = UpfQfcoef(qfcoef, first_index, second_index, composite_index)
+
+        if first_index != second_index
+            # there is qfcoef_ij = qfcoef_ji
+            qfcoefs[(second_index, first_index)] = UpfQfcoef(qfcoef, second_index, first_index, composite_index)
+        end
     end
 
     # These values are (sometimes) given by UPF v2 but not by UPF v1

@@ -313,14 +313,14 @@ function upf2_parse_augmentation(node::EzXML.Node, l_max::Int)
     else
         # In UPF.v2 qfcoef(1:nqf, 1:nqlc, 1:nbeta, 1:nbeta)
         nqlc = 2 * l_max + 1
-        qfcoefs = UpfQfcoef[]
+        qfcoefs = Dict{Tuple{Int, Int}, UpfQfcoef}()
         vec_qfcoefs = parse.(Float64, split(strip(nodecontent(qfcoef_node))))
         qfcoef_idx = 1
-        for first_index in 1:number_of_projectors, second_index in first_index:number_of_projectors
+        for first_index in 1:number_of_projectors, second_index in 1:number_of_projectors
             qfcoef = vec_qfcoefs[qfcoef_idx:qfcoef_idx+nqf*nqlc-1]
             composite_index = second_index * (second_index - 1) / 2 + first_index
 
-            push!(qfcoefs, UpfQfcoef(qfcoef, first_index, second_index, composite_index))
+            qfcoefs[(first_index, second_index)] = UpfQfcoef(qfcoef, first_index, second_index, composite_index)
 
             qfcoef_idx += nqf*nqlc
         end
@@ -385,8 +385,9 @@ function upf2_dump_augmentation(aug::UpfAugmentation)::EzXML.Node
         # Need to concatenate to an array from every qfcoef node
         vec_qfcoefs = UpfQfcoef[]
 
-        for qfcoef in aug.qfcoefs
-            vec_qfcoefs = vcat(vec_qfcoefs, qfcoef.qfcoef)       
+        for first_index in 1:number_of_projectors, second_index in 1:number_of_projectors
+            qfcoef = aug.qfcoefs[(first_index, second_index)]
+            vec_qfcoefs = vcat(vec_qfcoefs, qfcoef.qfcoef)
         end
 
         addelement!(node, "PP_QFCOEF", array_to_text(vec_qfcoefs))
