@@ -289,10 +289,8 @@ function upf1_parse_augmentation(io::IO, mesh_size::Int, number_of_proj::Int, l_
         # maximum angular momentum channel
         read_until(io, "<PP_QFCOEF>")
         mat_qfcoef = reshape(read_mesh_data(Float64, io, (2l_max + 1) * nqf), nqf, 2l_max + 1)
-        qfcoef = Dict{Int, Vector{Float64}}()
-        for idx_l in 1:2l_max + 1
-            qfcoef[idx_l - l_max - 1] = mat_qfcoef[:, idx_l]
-        end
+        # matrix read is column major, so we need to transpose it to row major
+        qfcoef = transpose(mat_qfcoef)
         read_until(io, "</PP_QFCOEF>")
 
         # These values are given by UPF v2 but not by UPF v1
