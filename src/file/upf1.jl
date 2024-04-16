@@ -272,7 +272,7 @@ function upf1_parse_augmentation(io::IO, mesh_size::Int, number_of_proj::Int, l_
     qfcoefs = Dict{Tuple{Int, Int}, UpfQfcoef}()
 
     # For each pair of projectors, read the augmentation function block
-    for i in 1:number_of_proj, _ in i:number_of_proj
+    for idx in 1:number_of_proj, _ in idx:number_of_proj
         # The first line contains the indices of the two projectors and the angular momentum
         # of the projector corresponding to the second index
         s = split(readline(io))
@@ -288,7 +288,11 @@ function upf1_parse_augmentation(io::IO, mesh_size::Int, number_of_proj::Int, l_
         # Read the `nqf` polynomial coefficients for each magnetic quantum number of the
         # maximum angular momentum channel
         read_until(io, "<PP_QFCOEF>")
-        qfcoef = read_mesh_data(Float64, io, nqf * (2l_max + 1))
+        mat_qfcoef = reshape(read_mesh_data(Float64, io, (2l_max + 1) * nqf), nqf, 2l_max + 1)
+        qfcoef = Dict{Int, Vector{Float64}}()
+        for idx_l in 1:2l_max + 1
+            qfcoef[idx_l - l_max - 1] = mat_qfcoef[:, idx_l]
+        end
         read_until(io, "</PP_QFCOEF>")
 
         # These values are given by UPF v2 but not by UPF v1

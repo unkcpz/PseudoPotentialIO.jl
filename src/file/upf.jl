@@ -94,7 +94,8 @@ struct UpfQijl
 end
 
 struct UpfQfcoef
-    qfcoef::Vector{Float64}
+    # key for qfcoef is the angular momentum, -l_max <= l <= l_max
+    qfcoef::Dict{Int, Vector{Float64}}  
     first_index::Union{Nothing,Int}
     second_index::Union{Nothing,Int}
     composite_index::Union{Nothing,Int}
@@ -221,11 +222,11 @@ function convert2std(nonlocal::UpfNonlocal, mesh::UpfMesh)::UpfNonlocal
                 # Poly expansion of q(r) at small radii
                 xx = x^2
 
-                qijl.qijl[ir] = qfcoef.qfcoef[1] # init
-                for _i in 2:aug.nqf
-                    qijl.qijl[ir] += qfcoef.qfcoef[_i] * xx ^ (_i-1)
-                end 
-                qijl.qijl[ir] *= x^(l+2)
+                #qijl.qijl[ir] = qfcoef.qfcoef[1] # init
+                #for _i in 2:aug.nqf
+                #    qijl.qijl[ir] += qfcoef.qfcoef[_i] * xx ^ (_i-1)
+                #end 
+                #qijl.qijl[ir] *= x^(l+2)
             end
             push!(qijls, qijl)
         end

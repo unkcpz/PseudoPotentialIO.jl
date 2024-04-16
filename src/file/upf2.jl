@@ -317,7 +317,10 @@ function upf2_parse_augmentation(node::EzXML.Node, l_max::Int)
         vec_qfcoefs = parse.(Float64, split(strip(nodecontent(qfcoef_node))))
         qfcoef_idx = 1
         for first_index in 1:number_of_projectors, second_index in 1:number_of_projectors
-            qfcoef = vec_qfcoefs[qfcoef_idx:qfcoef_idx+nqf*nqlc-1]
+            mat_qfcoef = reshape(vec_qfcoefs[qfcoef_idx:qfcoef_idx+nqf*nqlc-1], (2l_max + 1, nqf))
+            qfcoef = Dict{Int, Vector{Float64}}()
+            qfcoef[ii - l_max - 1] = mat_qfcoef[ii, :]
+
             composite_index = second_index * (second_index - 1) / 2 + first_index
 
             qfcoefs[(first_index, second_index)] = UpfQfcoef(qfcoef, first_index, second_index, composite_index)
@@ -387,7 +390,12 @@ function upf2_dump_augmentation(aug::UpfAugmentation)::EzXML.Node
 
         for first_index in 1:number_of_projectors, second_index in 1:number_of_projectors
             qfcoef = aug.qfcoefs[(first_index, second_index)]
-            vec_qfcoefs = vcat(vec_qfcoefs, qfcoef.qfcoef)
+            
+            # sorted keys and dump the values
+            sorted_keys = sort(collect(keys(qfcoef.qfcoef)))
+            for key in sorted_keys
+                vec_qfcoefs = vcat(vec_qfcoefs, qfcoef.qfcoef[key])
+            end
         end
 
         addelement!(node, "PP_QFCOEF", array_to_text(vec_qfcoefs))
